@@ -67,10 +67,26 @@ void Error_Handler(void);
 #define USART2_RX_GPIO_Port GPIOA
 #define LED_GREEN_Pin GPIO_PIN_5
 #define LED_GREEN_GPIO_Port GPIOA
+#define KEYPAD_ROW0_Pin GPIO_PIN_0
+#define KEYPAD_ROW0_GPIO_Port GPIOB
+#define KEYPAD_ROW1_Pin GPIO_PIN_1
+#define KEYPAD_ROW1_GPIO_Port GPIOB
+#define KEYPAD_ROW2_Pin GPIO_PIN_2
+#define KEYPAD_ROW2_GPIO_Port GPIOB
 #define TMS_Pin GPIO_PIN_13
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
+#define KEYPAD_ROW3_Pin GPIO_PIN_3
+#define KEYPAD_ROW3_GPIO_Port GPIOB
+#define KEYPAD_COL0_Pin GPIO_PIN_4
+#define KEYPAD_COL0_GPIO_Port GPIOB
+#define KEYPAD_COL1_Pin GPIO_PIN_5
+#define KEYPAD_COL1_GPIO_Port GPIOB
+#define KEYPAD_COL2_Pin GPIO_PIN_6
+#define KEYPAD_COL2_GPIO_Port GPIOB
+#define KEYPAD_COL3_Pin GPIO_PIN_7
+#define KEYPAD_COL3_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
