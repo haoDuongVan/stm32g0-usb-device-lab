@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "app_main.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -96,7 +96,7 @@ int main(void)
   MX_TIM6_Init();
   MX_USB_Device_Init();
   /* USER CODE BEGIN 2 */
-
+  HID_Keyboard_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -106,6 +106,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    HID_Keyboard_App();
   }
   /* USER CODE END 3 */
 }
