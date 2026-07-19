@@ -12,6 +12,7 @@
 #include "key_event_queue.h"
 #include "key_table.h"
 #include "usb_hid_keyboard.h"
+#include "usb_cdc_log.h"
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -212,6 +213,9 @@ void HidKeyboardConvert_Run(void)
     case KEY_EVENT_ON:
     case KEY_EVENT_REPEAT:
       entry = KeyTable_Get(event.keyLoc);
+      CdcLog_Printf("[HID] keyLoc=%u event=%d usage=0x%02X\r\n",
+                    event.keyLoc, event.type,
+                    (entry != NULL) ? entry->usage : 0U);
 
       if (entry == NULL)
       {
@@ -272,6 +276,7 @@ void HidKeyboardConvert_Run(void)
         break;
       }
 
+      CdcLog_Printf("[ERR] simultaneous key detected - ErrorRollOver\r\n");
       HidKeyboardReport_SetErrorRollOver(&sReport);
 
       if (UsbHidKeyboard_SendReport(HidKeyboardReport_GetData(&sReport)))

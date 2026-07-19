@@ -13,6 +13,7 @@
 #include "key_detect.h"
 #include "hid_keyboard_convert.h"
 #include "usb_hid_keyboard.h"
+#include "usb_cdc_log.h"
 
 #include "stm32g0xx_hal.h"
 
@@ -41,6 +42,7 @@ void HID_Keyboard_Init(void)
   ScanScheduler_Init();
   UsbHidKeyboard_Init();
   HidKeyboardConvert_Init();
+  CdcLog_Init();
   HAL_TIM_Base_Start_IT(&htim6);
 }
 
@@ -53,4 +55,5 @@ void HID_Keyboard_App(void)
   }
 
   HidKeyboardConvert_Run();
+  CdcLog_Run();
 }
