@@ -11,6 +11,7 @@
 #include "scan_scheduler.h"
 #include "key_event_queue.h"
 #include "key_detect.h"
+#include "hid_keyboard_convert.h"
 
 #include "stm32g0xx_hal.h"
 
@@ -37,6 +38,7 @@ void HID_Keyboard_Init(void)
   Keypad_Init();
   KeyDetect_Init();
   ScanScheduler_Init();
+  HidKeyboardConvert_Init();
   HAL_TIM_Base_Start_IT(&htim6);
 }
 
@@ -48,5 +50,7 @@ void HID_Keyboard_App(void)
     KeyDetect_Run();
   }
 
-  // TODO: Convert queued key events to HID report and send over USB
+  HidKeyboardConvert_Run();
+
+  // TODO: Send the built HID report over USB (transport layer)
 }
