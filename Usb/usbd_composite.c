@@ -18,6 +18,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_composite.h"
 #include "usbd_ctlreq.h"
+#include "usb_vendor_cmd.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -339,6 +340,12 @@ static uint8_t Composite_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *r
   if (hcomp == NULL)
   {
     return (uint8_t)USBD_FAIL;
+  }
+
+  /* ---- Vendor device-level requests (bmRequestType = 0xC0) ---- */
+  if ((req->bmRequest & USB_REQ_TYPE_MASK) == USB_REQ_TYPE_VENDOR)
+  {
+    return VendorCmd_HandleSetup(pdev, req);
   }
 
   /* ---- HID class requests (Interface 0) ---- */

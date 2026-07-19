@@ -14,6 +14,7 @@
 #include "hid_keyboard_convert.h"
 #include "usb_hid_keyboard.h"
 #include "usb_cdc_log.h"
+#include "usb_vendor_cmd.h"
 
 #include "stm32g0xx_hal.h"
 
@@ -43,6 +44,8 @@ void HID_Keyboard_Init(void)
   UsbHidKeyboard_Init();
   HidKeyboardConvert_Init();
   CdcLog_Init();
+  VendorCmd_Init();
+  CdcLog_Printf("[BOOT] stm32g0-usb-device-lab started\r\n");
   HAL_TIM_Base_Start_IT(&htim6);
 }
 
@@ -56,4 +59,6 @@ void HID_Keyboard_App(void)
 
   HidKeyboardConvert_Run();
   CdcLog_Run();
+  VendorCmd_FlushPendingLog();
+  VendorCmd_UpdateLed();
 }
