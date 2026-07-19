@@ -5,12 +5,14 @@
  *      Author: haodu
  *
  * Custom USB class, replacing usbd_hid.c as the single registered class.
- * This step (lab-09a, part 1) implements only HID Keyboard (Interface 0),
- * to confirm the hand-written class mechanism (Init/DeInit/Setup/DataIn/
- * GetCfgDesc) works end-to-end before adding CDC ACM in the next step.
+ * lab-09: HID Keyboard (Interface 0) + CDC ACM (Interfaces 1-2).
+ * Vendor Bulk (Interface 3) is added in a later milestone.
  *
- * Endpoint map (this step):
- *   EP1 IN  0x81  HID Keyboard Interrupt IN  8 bytes  10 ms
+ * Endpoint map:
+ *   EP1 IN  0x81  HID Keyboard Interrupt IN   8 bytes  10 ms
+ *   EP2 IN  0x82  CDC Notification  IN        8 bytes  16 ms
+ *   EP3 OUT 0x03  CDC Data OUT               64 bytes
+ *   EP3 IN  0x83  CDC Data IN                64 bytes
  */
 
 /* Includes ------------------------------------------------------------------*/
@@ -32,9 +34,11 @@
 
 /* Interface numbers */
 #define COMP_IF_HID                 0U
+#define COMP_IF_CDC_COMM            1U
+#define COMP_IF_CDC_DATA            2U
 
-/* Configuration descriptor total length: cfg(9) + if(9) + hid(9) + ep(7) */
-#define COMP_CFG_DESC_SIZE          34U
+/* Configuration descriptor total length: HID(25) + IAD(8) + CDC comm(28) + CDC data(23) */
+#define COMP_CFG_DESC_SIZE          100U
 
 /* Private variables ---------------------------------------------------------*/
 
@@ -79,7 +83,7 @@ __ALIGN_BEGIN static uint8_t sCompositeCfgDesc[COMP_CFG_DESC_SIZE] __ALIGN_END =
   0x09,                          /* bLength */
   USB_DESC_TYPE_CONFIGURATION,   /* bDescriptorType */
   COMP_CFG_DESC_SIZE, 0x00,      /* wTotalLength */
-  0x01,                          /* bNumInterfaces: HID(0) only */
+  0x03,                          /* bNumInterfaces: HID(0) + CDC Comm(1) + CDC Data(2) */
   0x01,                          /* bConfigurationValue */
   0x00,                          /* iConfiguration */
 #if (USBD_SELF_POWERED == 1U)
@@ -117,7 +121,101 @@ __ALIGN_BEGIN static uint8_t sCompositeCfgDesc[COMP_CFG_DESC_SIZE] __ALIGN_END =
   0x03,                          /* bmAttributes: Interrupt */
   COMP_HID_EPIN_SIZE, 0x00,      /* wMaxPacketSize: 8 bytes */
   COMP_HID_FS_BINTERVAL,         /* bInterval: 10 ms */
+
+  /* ---------- IAD: CDC ACM (Interfaces 1 and 2) ---------- */
+  0x08,                          /* bLength */
+  0x0B,                          /* bDescriptorType: IAD */
+  COMP_IF_CDC_COMM,              /* bFirstInterface */
+  0x02,                          /* bInterfaceCount */
+  0x02,                          /* bFunctionClass: CDC */
+  0x02,                          /* bFunctionSubClass: ACM */
+  0x01,                          /* bFunctionProtocol: AT commands */
+  0x00,                          /* iFunction */
+
+  /* ---------- Interface 1: CDC Communication ---------- */
+  0x09,                          /* bLength */
+  USB_DESC_TYPE_INTERFACE,       /* bDescriptorType */
+  COMP_IF_CDC_COMM,              /* bInterfaceNumber */
+  0x00,                          /* bAlternateSetting */
+  0x01,                          /* bNumEndpoints */
+  0x02,                          /* bInterfaceClass: CDC */
+  0x02,                          /* bInterfaceSubClass: ACM */
+  0x01,                          /* bInterfaceProtocol: AT commands */
+  0x00,                          /* iInterface */
+
+  /* CDC Header Functional Descriptor */
+  0x05,                          /* bLength */
+  0x24,                          /* bDescriptorType: CS_INTERFACE */
+  0x00,                          /* bDescriptorSubtype: Header */
+  0x10, 0x01,                    /* bcdCDC: 1.10 */
+
+  /* CDC Call Management Functional Descriptor */
+  0x05,                          /* bLength */
+  0x24,                          /* bDescriptorType: CS_INTERFACE */
+  0x01,                          /* bDescriptorSubtype: Call Management */
+  0x00,                          /* bmCapabilities: no call management */
+  COMP_IF_CDC_DATA,              /* bDataInterface */
+
+  /* CDC ACM Functional Descriptor */
+  0x04,                          /* bLength */
+  0x24,                          /* bDescriptorType: CS_INTERFACE */
+  0x02,                          /* bDescriptorSubtype: ACM */
+  0x02,                          /* bmCapabilities: supports SET/GET_LINE_CODING */
+
+  /* CDC Union Functional Descriptor */
+  0x05,                          /* bLength */
+  0x24,                          /* bDescriptorType: CS_INTERFACE */
+  0x06,                          /* bDescriptorSubtype: Union */
+  COMP_IF_CDC_COMM,              /* bControlInterface */
+  COMP_IF_CDC_DATA,              /* bSubordinateInterface0 */
+
+  /* EP2 IN: CDC Notification Interrupt IN */
+  0x07,                          /* bLength */
+  USB_DESC_TYPE_ENDPOINT,        /* bDescriptorType */
+  COMP_CDC_CMD_EPIN_ADDR,        /* bEndpointAddress: IN EP2 */
+  0x03,                          /* bmAttributes: Interrupt */
+  COMP_CDC_CMD_EPIN_SIZE, 0x00,  /* wMaxPacketSize: 8 bytes */
+  COMP_CDC_CMD_FS_BINTERVAL,     /* bInterval: 16 ms */
+
+  /* ---------- Interface 2: CDC Data ---------- */
+  0x09,                          /* bLength */
+  USB_DESC_TYPE_INTERFACE,       /* bDescriptorType */
+  COMP_IF_CDC_DATA,              /* bInterfaceNumber */
+  0x00,                          /* bAlternateSetting */
+  0x02,                          /* bNumEndpoints */
+  0x0A,                          /* bInterfaceClass: CDC Data */
+  0x00,                          /* bInterfaceSubClass */
+  0x00,                          /* bInterfaceProtocol */
+  0x00,                          /* iInterface */
+
+  /* EP3 OUT: CDC Data OUT */
+  0x07,                          /* bLength */
+  USB_DESC_TYPE_ENDPOINT,        /* bDescriptorType */
+  COMP_CDC_DATA_OUT_EP_ADDR,     /* bEndpointAddress: OUT EP3 */
+  0x02,                          /* bmAttributes: Bulk */
+  COMP_CDC_DATA_EP_SIZE, 0x00,   /* wMaxPacketSize: 64 bytes */
+  0x00,                          /* bInterval: ignored for Bulk */
+
+  /* EP3 IN: CDC Data IN */
+  0x07,                          /* bLength */
+  USB_DESC_TYPE_ENDPOINT,        /* bDescriptorType */
+  COMP_CDC_DATA_IN_EP_ADDR,      /* bEndpointAddress: IN EP3 */
+  0x02,                          /* bmAttributes: Bulk */
+  COMP_CDC_DATA_EP_SIZE, 0x00,   /* wMaxPacketSize: 64 bytes */
+  0x00,                          /* bInterval: ignored for Bulk */
 };
+
+/* Default CDC line coding: 115200 baud, 8N1 */
+static const USBD_CDC_LineCodingTypeDef sDefaultLineCoding =
+{
+  .baudRate = 115200U,
+  .stopBits = 0U,  /* 1 stop bit */
+  .parity   = 0U,  /* No parity */
+  .dataBits = 8U,
+};
+
+/* EP0 scratch buffer for CDC control requests */
+static uint8_t sEp0Buf[CDC_LINE_CODING_SIZE];
 
 /* Device qualifier - not used in FS-only devices but required by the class interface */
 __ALIGN_BEGIN static uint8_t sDeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __ALIGN_END =
@@ -138,6 +236,8 @@ static uint8_t  Composite_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t  Composite_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t  Composite_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
 static uint8_t  Composite_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum);
+static uint8_t  Composite_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum);
+static uint8_t  Composite_EP0_RxReady(USBD_HandleTypeDef *pdev);
 static uint8_t  Composite_SOF(USBD_HandleTypeDef *pdev);
 static uint8_t *Composite_GetCfgDesc(uint16_t *length);
 static uint8_t *Composite_GetDeviceQualifierDesc(uint16_t *length);
@@ -149,9 +249,9 @@ USBD_ClassTypeDef USBD_COMPOSITE =
   Composite_DeInit,
   Composite_Setup,
   NULL,                     /* EP0_TxSent */
-  NULL,                     /* EP0_RxReady */
+  Composite_EP0_RxReady,
   Composite_DataIn,
-  NULL,                     /* DataOut */
+  Composite_DataOut,
   Composite_SOF,
   NULL,                     /* IsoINIncomplete */
   NULL,                     /* IsoOUTIncomplete */
@@ -179,11 +279,27 @@ static uint8_t Composite_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   (void)memset(hcomp, 0, sizeof(USBD_Composite_HandleTypeDef));
   pdev->pClassDataCmsit[pdev->classId] = hcomp;
 
-  hcomp->hidTxBusy = false;
+  hcomp->lineCoding       = sDefaultLineCoding;
+  hcomp->hidTxBusy        = false;
+  hcomp->cdcTxBusy        = false;
+  hcomp->cdcHostConnected = false;
 
   /* Open HID IN endpoint */
   (void)USBD_LL_OpenEP(pdev, COMP_HID_EPIN_ADDR, USBD_EP_TYPE_INTR, COMP_HID_EPIN_SIZE);
   pdev->ep_in[COMP_HID_EPIN_ADDR & 0x0FU].is_used = 1U;
+
+  /* Open CDC Notification IN endpoint */
+  (void)USBD_LL_OpenEP(pdev, COMP_CDC_CMD_EPIN_ADDR, USBD_EP_TYPE_INTR, COMP_CDC_CMD_EPIN_SIZE);
+  pdev->ep_in[COMP_CDC_CMD_EPIN_ADDR & 0x0FU].is_used = 1U;
+
+  /* Open CDC Data OUT endpoint and prime receiver */
+  (void)USBD_LL_OpenEP(pdev, COMP_CDC_DATA_OUT_EP_ADDR, USBD_EP_TYPE_BULK, COMP_CDC_DATA_EP_SIZE);
+  pdev->ep_out[COMP_CDC_DATA_OUT_EP_ADDR & 0x0FU].is_used = 1U;
+  (void)USBD_LL_PrepareReceive(pdev, COMP_CDC_DATA_OUT_EP_ADDR, hcomp->cdcRxBuf, COMP_CDC_DATA_EP_SIZE);
+
+  /* Open CDC Data IN endpoint */
+  (void)USBD_LL_OpenEP(pdev, COMP_CDC_DATA_IN_EP_ADDR, USBD_EP_TYPE_BULK, COMP_CDC_DATA_EP_SIZE);
+  pdev->ep_in[COMP_CDC_DATA_IN_EP_ADDR & 0x0FU].is_used = 1U;
 
   return (uint8_t)USBD_OK;
 }
@@ -194,6 +310,15 @@ static uint8_t Composite_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   (void)USBD_LL_CloseEP(pdev, COMP_HID_EPIN_ADDR);
   pdev->ep_in[COMP_HID_EPIN_ADDR & 0x0FU].is_used = 0U;
+
+  (void)USBD_LL_CloseEP(pdev, COMP_CDC_CMD_EPIN_ADDR);
+  pdev->ep_in[COMP_CDC_CMD_EPIN_ADDR & 0x0FU].is_used = 0U;
+
+  (void)USBD_LL_CloseEP(pdev, COMP_CDC_DATA_OUT_EP_ADDR);
+  pdev->ep_out[COMP_CDC_DATA_OUT_EP_ADDR & 0x0FU].is_used = 0U;
+
+  (void)USBD_LL_CloseEP(pdev, COMP_CDC_DATA_IN_EP_ADDR);
+  pdev->ep_in[COMP_CDC_DATA_IN_EP_ADDR & 0x0FU].is_used = 0U;
 
   if (pdev->pClassDataCmsit[pdev->classId] != NULL)
   {
@@ -216,80 +341,119 @@ static uint8_t Composite_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *r
     return (uint8_t)USBD_FAIL;
   }
 
-  /* Only Interface 0 (HID) exists in this step - CDC interfaces added next */
-  if (ifNum != COMP_IF_HID)
+  /* ---- HID class requests (Interface 0) ---- */
+  if (ifNum == COMP_IF_HID)
+  {
+    switch (req->bmRequest & USB_REQ_TYPE_MASK)
+    {
+      case USB_REQ_TYPE_CLASS:
+        switch (req->bRequest)
+        {
+          case HID_REQ_SET_PROTOCOL:
+            hcomp->hidProtocol = (uint32_t)(req->wValue);
+            break;
+
+          case HID_REQ_GET_PROTOCOL:
+            (void)USBD_CtlSendData(pdev, (uint8_t *)&hcomp->hidProtocol, 1U);
+            break;
+
+          case HID_REQ_SET_IDLE:
+            hcomp->hidIdleState = (uint32_t)(req->wValue >> 8U);
+            break;
+
+          case HID_REQ_GET_IDLE:
+            (void)USBD_CtlSendData(pdev, (uint8_t *)&hcomp->hidIdleState, 1U);
+            break;
+
+          default:
+            USBD_CtlError(pdev, req);
+            return (uint8_t)USBD_FAIL;
+        }
+        break;
+
+      case USB_REQ_TYPE_STANDARD:
+        switch (req->bRequest)
+        {
+          case USB_REQ_GET_DESCRIPTOR:
+            if ((req->wValue >> 8U) == HID_REPORT_DESC_TYPE)
+            {
+              pbuf = sHidReportDesc;
+              len  = (uint16_t)MIN(HID_KEYBOARD_REPORT_DESC_SIZE, req->wLength);
+            }
+            else if ((req->wValue >> 8U) == HID_DESCRIPTOR_TYPE)
+            {
+              /* HID descriptor sits at byte offset 18 in the config descriptor */
+              pbuf = &sCompositeCfgDesc[18U];
+              len  = (uint16_t)MIN(9U, req->wLength);
+            }
+            else
+            {
+              USBD_CtlError(pdev, req);
+              return (uint8_t)USBD_FAIL;
+            }
+
+            (void)USBD_CtlSendData(pdev, (uint8_t *)pbuf, len);
+            break;
+
+          case USB_REQ_GET_INTERFACE:
+            (void)USBD_CtlSendData(pdev, (uint8_t *)&hcomp->hidProtocol, 1U);
+            break;
+
+          case USB_REQ_SET_INTERFACE:
+            break;
+
+          default:
+            USBD_CtlError(pdev, req);
+            return (uint8_t)USBD_FAIL;
+        }
+        break;
+
+      default:
+        USBD_CtlError(pdev, req);
+        return (uint8_t)USBD_FAIL;
+    }
+  }
+  /* ---- CDC class requests (Interfaces 1 and 2) ---- */
+  else if ((ifNum == COMP_IF_CDC_COMM) || (ifNum == COMP_IF_CDC_DATA))
+  {
+    switch (req->bmRequest & USB_REQ_TYPE_MASK)
+    {
+      case USB_REQ_TYPE_CLASS:
+        switch (req->bRequest)
+        {
+          case CDC_SET_LINE_CODING:
+            /* Data arrives via EP0 DataOut - handled in EP0_RxReady */
+            (void)USBD_CtlPrepareRx(pdev, sEp0Buf, CDC_LINE_CODING_SIZE);
+            break;
+
+          case CDC_GET_LINE_CODING:
+            (void)USBD_CtlSendData(pdev, (uint8_t *)&hcomp->lineCoding, CDC_LINE_CODING_SIZE);
+            break;
+
+          case CDC_SET_CONTROL_LINE_STATE:
+            hcomp->controlLineState = (uint8_t)(req->wValue & 0xFFU);
+            hcomp->cdcHostConnected = ((hcomp->controlLineState & 0x01U) != 0U);
+            break;
+
+          case CDC_SEND_BREAK:
+            /* Not implemented */
+            break;
+
+          default:
+            USBD_CtlError(pdev, req);
+            return (uint8_t)USBD_FAIL;
+        }
+        break;
+
+      default:
+        USBD_CtlError(pdev, req);
+        return (uint8_t)USBD_FAIL;
+    }
+  }
+  else
   {
     USBD_CtlError(pdev, req);
     return (uint8_t)USBD_FAIL;
-  }
-
-  switch (req->bmRequest & USB_REQ_TYPE_MASK)
-  {
-    case USB_REQ_TYPE_CLASS:
-      switch (req->bRequest)
-      {
-        case HID_REQ_SET_PROTOCOL:
-          hcomp->hidProtocol = (uint32_t)(req->wValue);
-          break;
-
-        case HID_REQ_GET_PROTOCOL:
-          (void)USBD_CtlSendData(pdev, (uint8_t *)&hcomp->hidProtocol, 1U);
-          break;
-
-        case HID_REQ_SET_IDLE:
-          hcomp->hidIdleState = (uint32_t)(req->wValue >> 8U);
-          break;
-
-        case HID_REQ_GET_IDLE:
-          (void)USBD_CtlSendData(pdev, (uint8_t *)&hcomp->hidIdleState, 1U);
-          break;
-
-        default:
-          USBD_CtlError(pdev, req);
-          return (uint8_t)USBD_FAIL;
-      }
-      break;
-
-    case USB_REQ_TYPE_STANDARD:
-      switch (req->bRequest)
-      {
-        case USB_REQ_GET_DESCRIPTOR:
-          if ((req->wValue >> 8U) == HID_REPORT_DESC_TYPE)
-          {
-            pbuf = sHidReportDesc;
-            len  = (uint16_t)MIN(HID_KEYBOARD_REPORT_DESC_SIZE, req->wLength);
-          }
-          else if ((req->wValue >> 8U) == HID_DESCRIPTOR_TYPE)
-          {
-            /* HID descriptor sits at byte offset 18 in the config descriptor */
-            pbuf = &sCompositeCfgDesc[18U];
-            len  = (uint16_t)MIN(9U, req->wLength);
-          }
-          else
-          {
-            USBD_CtlError(pdev, req);
-            return (uint8_t)USBD_FAIL;
-          }
-
-          (void)USBD_CtlSendData(pdev, (uint8_t *)pbuf, len);
-          break;
-
-        case USB_REQ_GET_INTERFACE:
-          (void)USBD_CtlSendData(pdev, (uint8_t *)&hcomp->hidProtocol, 1U);
-          break;
-
-        case USB_REQ_SET_INTERFACE:
-          break;
-
-        default:
-          USBD_CtlError(pdev, req);
-          return (uint8_t)USBD_FAIL;
-      }
-      break;
-
-    default:
-      USBD_CtlError(pdev, req);
-      return (uint8_t)USBD_FAIL;
   }
 
   return (uint8_t)USBD_OK;
@@ -308,6 +472,44 @@ static uint8_t Composite_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
   {
     hcomp->hidTxBusy = false;
   }
+  else if (epnum == (COMP_CDC_DATA_IN_EP_ADDR & 0x0FU))
+  {
+    hcomp->cdcTxBusy = false;
+  }
+  /* CDC notification EP (ep 2) - nothing to do */
+
+  return (uint8_t)USBD_OK;
+}
+
+static uint8_t Composite_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
+{
+  USBD_Composite_HandleTypeDef *hcomp = (USBD_Composite_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
+
+  if (hcomp == NULL)
+  {
+    return (uint8_t)USBD_FAIL;
+  }
+
+  if (epnum == COMP_CDC_DATA_OUT_EP_ADDR)
+  {
+    /* Re-arm the OUT endpoint for the next host packet */
+    (void)USBD_LL_PrepareReceive(pdev, COMP_CDC_DATA_OUT_EP_ADDR, hcomp->cdcRxBuf, COMP_CDC_DATA_EP_SIZE);
+  }
+
+  return (uint8_t)USBD_OK;
+}
+
+static uint8_t Composite_EP0_RxReady(USBD_HandleTypeDef *pdev)
+{
+  USBD_Composite_HandleTypeDef *hcomp = (USBD_Composite_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
+
+  if (hcomp == NULL)
+  {
+    return (uint8_t)USBD_FAIL;
+  }
+
+  /* Only CDC SET_LINE_CODING sends data through EP0 */
+  (void)memcpy(&hcomp->lineCoding, sEp0Buf, CDC_LINE_CODING_SIZE);
 
   return (uint8_t)USBD_OK;
 }
@@ -377,4 +579,66 @@ uint8_t USBD_COMPOSITE_HID_SendReport(USBD_HandleTypeDef *pdev, uint8_t *report,
   }
 
   return (uint8_t)USBD_OK;
+}
+
+uint8_t USBD_COMPOSITE_CDC_Transmit(USBD_HandleTypeDef *pdev, const uint8_t *buf, uint16_t len)
+{
+  USBD_Composite_HandleTypeDef *hcomp = (USBD_Composite_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
+
+  if (hcomp == NULL)
+  {
+    return (uint8_t)USBD_FAIL;
+  }
+
+  if (pdev->dev_state != USBD_STATE_CONFIGURED)
+  {
+    return (uint8_t)USBD_FAIL;
+  }
+
+  if (hcomp->cdcTxBusy)
+  {
+    return (uint8_t)USBD_BUSY;
+  }
+
+  if (len > COMP_CDC_DATA_EP_SIZE)
+  {
+    len = COMP_CDC_DATA_EP_SIZE;
+  }
+
+  (void)memcpy(hcomp->cdcTxBuf, buf, len);
+  hcomp->cdcTxLen  = len;
+  hcomp->cdcTxBusy = true;
+
+  uint8_t ret = USBD_LL_Transmit(pdev, COMP_CDC_DATA_IN_EP_ADDR, hcomp->cdcTxBuf, len);
+  if (ret != (uint8_t)USBD_OK)
+  {
+    hcomp->cdcTxBusy = false;
+    return ret;
+  }
+
+  return (uint8_t)USBD_OK;
+}
+
+bool USBD_COMPOSITE_CDC_IsHostConnected(USBD_HandleTypeDef *pdev)
+{
+  USBD_Composite_HandleTypeDef *hcomp = (USBD_Composite_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
+
+  if (hcomp == NULL)
+  {
+    return false;
+  }
+
+  return hcomp->cdcHostConnected;
+}
+
+bool USBD_COMPOSITE_CDC_IsTxIdle(USBD_HandleTypeDef *pdev)
+{
+  USBD_Composite_HandleTypeDef *hcomp = (USBD_Composite_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
+
+  if (hcomp == NULL)
+  {
+    return false;
+  }
+
+  return !hcomp->cdcTxBusy;
 }
