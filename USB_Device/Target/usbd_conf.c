@@ -23,8 +23,7 @@
 #include "stm32g0xx_hal.h"
 #include "usbd_def.h"
 #include "usbd_core.h"
-
-#include "usbd_hid.h"
+#include "usbd_composite.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -408,7 +407,7 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   hpcd_USB_DRD_FS.Init.Host_channels = 8;
   hpcd_USB_DRD_FS.Init.speed = PCD_SPEED_FULL;
   hpcd_USB_DRD_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
-  hpcd_USB_DRD_FS.Init.Sof_enable = DISABLE;
+  hpcd_USB_DRD_FS.Init.Sof_enable = ENABLE;
   hpcd_USB_DRD_FS.Init.low_power_enable = DISABLE;
   hpcd_USB_DRD_FS.Init.lpm_enable = DISABLE;
   hpcd_USB_DRD_FS.Init.battery_charging_enable = DISABLE;
@@ -440,12 +439,21 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 
   /* USER CODE END RegisterCallBackSecondPart */
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+  /*
+   * Hand-patched for lab-09: PMA offsets moved to start right after the
+   * BTABLE region. With dev_endpoints = 8, the buffer descriptor table
+   * occupies the first 8*8 = 0x40 bytes of USB SRAM; the previous
+   * CubeMX-generated offsets (0x18, 0x58, 0x100) put EP0 OUT inside that
+   * region, aliasing the descriptor entries of higher endpoint numbers.
+   * Layout matches Project 06 so later endpoints (CDC, vendor bulk) can
+   * be appended at 0xC8 / 0xD0 / 0x110 / 0x150 without renumbering these.
+   */
   /* USER CODE BEGIN EndPoint_Configuration */
-  HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x00 , PCD_SNG_BUF, 0x18);
-  HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x80 , PCD_SNG_BUF, 0x58);
+  HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x00 , PCD_SNG_BUF, 0x040);
+  HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x80 , PCD_SNG_BUF, 0x080);
   /* USER CODE END EndPoint_Configuration */
   /* USER CODE BEGIN EndPoint_Configuration_HID */
-  HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x81 , PCD_SNG_BUF, 0x100);
+  HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x81 , PCD_SNG_BUF, 0x0C0);
   /* USER CODE END EndPoint_Configuration_HID */
 
   return USBD_OK;
@@ -690,7 +698,7 @@ uint32_t USBD_LL_GetRxDataSize(USBD_HandleTypeDef *pdev, uint8_t ep_addr)
   */
 void *USBD_static_malloc(uint32_t size)
 {
-  static uint32_t mem[(sizeof(USBD_HID_HandleTypeDef)/4)+1];/* On 32-bit boundary */
+  static uint32_t mem[(sizeof(USBD_Composite_HandleTypeDef)/4)+1];/* On 32-bit boundary */
   return mem;
 }
 
