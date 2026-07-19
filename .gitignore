@@ -1,6 +1,8 @@
 # STM32CubeIDE workspace metadata
 .metadata/
 .recommenders/
+*.launch
+.settings/com.st.stm32cube.ide.mcu.sfrview.prefs
 
 # Keep .project and .cproject for easier STM32CubeIDE import
 # Do not ignore .project
@@ -50,3 +52,7 @@ __pycache__/
 # Local notes
 local/
 notes.local.md
+/DEVLOG.md
+
+# Evidence videos stay local-only; hosted on YouTube, README links to them
+assets/evidence/**/*.mp4

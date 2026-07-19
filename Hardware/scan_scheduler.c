@@ -20,7 +20,10 @@
 #define SCAN_REQUEST_MAX_COUNT      10U
 
 /* Private variables ---------------------------------------------------------*/
-static volatile uint8_t sScanRequestCount = 0U;
+static volatile uint8_t  sScanRequestCount = 0U;
+
+// Free-running tick total, never capped or consumed. For evidence/debug watch only
+static volatile uint32_t sScanTickTotal = 0U;
 
 /* Function definitions ------------------------------------------------------*/
 
@@ -28,11 +31,14 @@ static volatile uint8_t sScanRequestCount = 0U;
 void ScanScheduler_Init(void)
 {
   sScanRequestCount = 0U;
+  sScanTickTotal    = 0U;
 }
 
 // Increment the pending scan request counter. Called from TIM6 ISR every 5 ms
 void ScanScheduler_OnTimerTick(void)
 {
+  sScanTickTotal++;
+
   if (sScanRequestCount < SCAN_REQUEST_MAX_COUNT)
   {
     sScanRequestCount++;
