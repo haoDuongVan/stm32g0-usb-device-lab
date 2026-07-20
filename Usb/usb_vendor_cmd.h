@@ -16,9 +16,8 @@
  *   0x03  SET_LED_MODE       0-3 (see enum)  -        VendorResponse_t
  *   0x04  START_RAM_DUMP     -               -        VendorDumpResponse_t
  *
- * TODO(lab-12): START_RAM_DUMP always reports "not implemented" for now -
- * the vendor bulk IN endpoint that would stream the dump does not exist
- * yet (see Usb/usb_vendor_bulk.h).
+ * START_RAM_DUMP arms the RAM dump engine in Usb/usb_vendor_bulk.c, which
+ * streams the accepted length over the vendor bulk IN endpoint (EP 0x84).
  */
 
 #ifndef INC_USB_VENDOR_CMD_H_
@@ -39,6 +38,7 @@
 /* Firmware feature flags reported in FirmwareInfo_t.featureFlags */
 #define FW_FEATURE_HID_KEYBOARD     (1UL << 0)
 #define FW_FEATURE_CDC_LOG          (1UL << 1)
+#define FW_FEATURE_VENDOR_BULK      (1UL << 2)
 #define FW_FEATURE_REPEAT_CONTROL   (1UL << 3)
 
 /* Magic word embedded in FirmwareInfo_t so the host tool can validate the response */
@@ -72,8 +72,8 @@ typedef struct __attribute__((packed))
 /*
  * Response for START_RAM_DUMP.
  * On success, acceptedLength tells the host how many bytes to read from the
- * vendor bulk IN endpoint. TODO(lab-12): always status=ERROR, acceptedLength=0
- * until that endpoint exists.
+ * vendor bulk IN endpoint. status=ERROR, acceptedLength=0 when a dump is
+ * already in progress.
  */
 typedef struct __attribute__((packed))
 {

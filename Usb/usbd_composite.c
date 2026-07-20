@@ -6,18 +6,20 @@
  *
  * Custom USB class, replacing usbd_hid.c as the single registered class.
  * lab-09: HID Keyboard (Interface 0) + CDC ACM (Interfaces 1-2).
- * Vendor Bulk (Interface 3) is added in a later milestone.
+ * lab-12: Vendor Bulk (Interface 3) added for the RAM dump stream.
  *
  * Endpoint map:
  *   EP1 IN  0x81  HID Keyboard Interrupt IN   8 bytes  10 ms
  *   EP2 IN  0x82  CDC Notification  IN        8 bytes  16 ms
  *   EP3 OUT 0x03  CDC Data OUT               64 bytes
  *   EP3 IN  0x83  CDC Data IN                64 bytes
+ *   EP4 IN  0x84  Vendor Data Bulk IN        64 bytes
  */
 
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_composite.h"
 #include "usbd_ctlreq.h"
+#include "usb_vendor_bulk.h"
 #include "usb_vendor_cmd.h"
 
 #include <stddef.h>
@@ -37,9 +39,10 @@
 #define COMP_IF_HID                 0U
 #define COMP_IF_CDC_COMM            1U
 #define COMP_IF_CDC_DATA            2U
+#define COMP_IF_VENDOR              3U
 
-/* Configuration descriptor total length: HID(25) + IAD(8) + CDC comm(28) + CDC data(23) */
-#define COMP_CFG_DESC_SIZE          100U
+/* Configuration descriptor total length: HID(25) + IAD(8) + CDC comm(28) + CDC data(23) + Vendor(16) */
+#define COMP_CFG_DESC_SIZE          116U
 
 /* Private variables ---------------------------------------------------------*/
 
@@ -84,7 +87,7 @@ __ALIGN_BEGIN static uint8_t sCompositeCfgDesc[COMP_CFG_DESC_SIZE] __ALIGN_END =
   0x09,                          /* bLength */
   USB_DESC_TYPE_CONFIGURATION,   /* bDescriptorType */
   COMP_CFG_DESC_SIZE, 0x00,      /* wTotalLength */
-  0x03,                          /* bNumInterfaces: HID(0) + CDC Comm(1) + CDC Data(2) */
+  0x04,                          /* bNumInterfaces: HID(0) + CDC Comm(1) + CDC Data(2) + Vendor(3) */
   0x01,                          /* bConfigurationValue */
   0x00,                          /* iConfiguration */
 #if (USBD_SELF_POWERED == 1U)
@@ -204,6 +207,25 @@ __ALIGN_BEGIN static uint8_t sCompositeCfgDesc[COMP_CFG_DESC_SIZE] __ALIGN_END =
   0x02,                          /* bmAttributes: Bulk */
   COMP_CDC_DATA_EP_SIZE, 0x00,   /* wMaxPacketSize: 64 bytes */
   0x00,                          /* bInterval: ignored for Bulk */
+
+  /* ---------- Interface 3: Vendor Data (RAM dump bulk stream) ---------- */
+  0x09,                          /* bLength */
+  USB_DESC_TYPE_INTERFACE,       /* bDescriptorType */
+  COMP_IF_VENDOR,                /* bInterfaceNumber */
+  0x00,                          /* bAlternateSetting */
+  0x01,                          /* bNumEndpoints */
+  0xFF,                          /* bInterfaceClass: Vendor Specific */
+  0x00,                          /* bInterfaceSubClass */
+  0x00,                          /* bInterfaceProtocol */
+  0x00,                          /* iInterface */
+
+  /* EP4 IN: Vendor Data Bulk IN */
+  0x07,                          /* bLength */
+  USB_DESC_TYPE_ENDPOINT,        /* bDescriptorType */
+  COMP_VENDOR_DATA_IN_EP_ADDR,   /* bEndpointAddress: IN EP4 */
+  0x02,                          /* bmAttributes: Bulk */
+  COMP_VENDOR_DATA_EP_SIZE, 0x00,/* wMaxPacketSize: 64 bytes */
+  0x00,                          /* bInterval: ignored for Bulk */
 };
 
 /* Default CDC line coding: 115200 baud, 8N1 */
@@ -302,6 +324,10 @@ static uint8_t Composite_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   (void)USBD_LL_OpenEP(pdev, COMP_CDC_DATA_IN_EP_ADDR, USBD_EP_TYPE_BULK, COMP_CDC_DATA_EP_SIZE);
   pdev->ep_in[COMP_CDC_DATA_IN_EP_ADDR & 0x0FU].is_used = 1U;
 
+  /* Open Vendor Bulk IN endpoint */
+  (void)USBD_LL_OpenEP(pdev, COMP_VENDOR_DATA_IN_EP_ADDR, USBD_EP_TYPE_BULK, COMP_VENDOR_DATA_EP_SIZE);
+  pdev->ep_in[COMP_VENDOR_DATA_IN_EP_ADDR & 0x0FU].is_used = 1U;
+
   return (uint8_t)USBD_OK;
 }
 
@@ -320,6 +346,9 @@ static uint8_t Composite_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   (void)USBD_LL_CloseEP(pdev, COMP_CDC_DATA_IN_EP_ADDR);
   pdev->ep_in[COMP_CDC_DATA_IN_EP_ADDR & 0x0FU].is_used = 0U;
+
+  (void)USBD_LL_CloseEP(pdev, COMP_VENDOR_DATA_IN_EP_ADDR);
+  pdev->ep_in[COMP_VENDOR_DATA_IN_EP_ADDR & 0x0FU].is_used = 0U;
 
   if (pdev->pClassDataCmsit[pdev->classId] != NULL)
   {
@@ -482,6 +511,11 @@ static uint8_t Composite_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
   else if (epnum == (COMP_CDC_DATA_IN_EP_ADDR & 0x0FU))
   {
     hcomp->cdcTxBusy = false;
+  }
+  else if (epnum == (COMP_VENDOR_DATA_IN_EP_ADDR & 0x0FU))
+  {
+    hcomp->vendorTxBusy = false;
+    VendorDump_OnTxCplt(pdev);
   }
   /* CDC notification EP (ep 2) - nothing to do */
 
@@ -648,4 +682,53 @@ bool USBD_COMPOSITE_CDC_IsTxIdle(USBD_HandleTypeDef *pdev)
   }
 
   return !hcomp->cdcTxBusy;
+}
+
+uint8_t USBD_COMPOSITE_VENDOR_Transmit(USBD_HandleTypeDef *pdev, const uint8_t *buf, uint16_t len)
+{
+  USBD_Composite_HandleTypeDef *hcomp = (USBD_Composite_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
+
+  if (hcomp == NULL)
+  {
+    return (uint8_t)USBD_FAIL;
+  }
+
+  if (pdev->dev_state != USBD_STATE_CONFIGURED)
+  {
+    return (uint8_t)USBD_FAIL;
+  }
+
+  if (hcomp->vendorTxBusy)
+  {
+    return (uint8_t)USBD_BUSY;
+  }
+
+  if (len > COMP_VENDOR_DATA_EP_SIZE)
+  {
+    len = COMP_VENDOR_DATA_EP_SIZE;
+  }
+
+  (void)memcpy(hcomp->vendorTxBuf, buf, len);
+  hcomp->vendorTxBusy = true;
+
+  uint8_t ret = USBD_LL_Transmit(pdev, COMP_VENDOR_DATA_IN_EP_ADDR, hcomp->vendorTxBuf, len);
+  if (ret != (uint8_t)USBD_OK)
+  {
+    hcomp->vendorTxBusy = false;
+    return ret;
+  }
+
+  return (uint8_t)USBD_OK;
+}
+
+bool USBD_COMPOSITE_VENDOR_IsTxIdle(USBD_HandleTypeDef *pdev)
+{
+  USBD_Composite_HandleTypeDef *hcomp = (USBD_Composite_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
+
+  if (hcomp == NULL)
+  {
+    return false;
+  }
+
+  return !hcomp->vendorTxBusy;
 }

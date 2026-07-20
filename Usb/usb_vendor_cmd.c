@@ -18,6 +18,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "usb_vendor_cmd.h"
 #include "usbd_composite.h"
+#include "usb_vendor_bulk.h"
 #include "usb_cdc_log.h"
 #include "main.h"
 #include "usbd_ctlreq.h"
@@ -45,7 +46,8 @@ typedef enum
   VLOG_SET_REPEAT_OFF,
   VLOG_SET_LED_OK,
   VLOG_SET_LED_ERR,
-  VLOG_DUMP_NOT_IMPL,
+  VLOG_DUMP_OK,
+  VLOG_DUMP_BUSY,
 } VendorLogEvent_t;
 
 /* Private variables ---------------------------------------------------------*/
@@ -83,6 +85,7 @@ void VendorCmd_Init(void)
   sFwInfo.versionMinor        = FW_VERSION_MINOR;
   sFwInfo.featureFlags        = FW_FEATURE_HID_KEYBOARD
                               | FW_FEATURE_CDC_LOG
+                              | FW_FEATURE_VENDOR_BULK
                               | FW_FEATURE_REPEAT_CONTROL;
   sFwInfo.hidInterface        = 0U;
   sFwInfo.cdcControlInterface = 1U;
@@ -176,8 +179,12 @@ void VendorCmd_FlushPendingLog(void)
       CdcLog_Printf("[VREQ] SET_LED_MODE mode=%u FAILURE\r\n",
                     (unsigned int)val);
       break;
-    case VLOG_DUMP_NOT_IMPL:
-      CdcLog_Printf("[VREQ] START_RAM_DUMP not implemented yet (TODO lab-12)\r\n");
+    case VLOG_DUMP_OK:
+      CdcLog_Printf("[VREQ] START_RAM_DUMP accepted len=%u SUCCESS\r\n",
+                    (unsigned int)val);
+      break;
+    case VLOG_DUMP_BUSY:
+      CdcLog_Printf("[VREQ] START_RAM_DUMP FAILURE (busy)\r\n");
       break;
     default:
       break;
@@ -237,15 +244,28 @@ uint8_t VendorCmd_HandleSetup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *re
 
     /* ------------------------------------------------------------------ */
     case VENDOR_REQ_START_RAM_DUMP:
-      /* TODO(lab-12): arm the real dump once the vendor bulk endpoint exists.
-       * For now always report "not implemented" so host tooling can detect it. */
-      sDumpRsp.status         = VENDOR_STATUS_ERROR;
-      sDumpRsp.request        = VENDOR_REQ_START_RAM_DUMP;
-      sDumpRsp.acceptedLength = 0U;
+    {
+      uint32_t acceptedLength = 0U;
+
+      if (VendorDump_Start(&acceptedLength))
+      {
+        sDumpRsp.status         = VENDOR_STATUS_OK;
+        sDumpRsp.acceptedLength = acceptedLength;
+        sPendingLogVal          = acceptedLength;
+        sPendingLog             = VLOG_DUMP_OK;
+      }
+      else
+      {
+        sDumpRsp.status         = VENDOR_STATUS_ERROR;
+        sDumpRsp.acceptedLength = 0U;
+        sPendingLog             = VLOG_DUMP_BUSY;
+      }
+
+      sDumpRsp.request = VENDOR_REQ_START_RAM_DUMP;
       len = (uint16_t)MIN(sizeof(sDumpRsp), req->wLength);
       (void)USBD_CtlSendData(pdev, (uint8_t *)&sDumpRsp, len);
-      sPendingLog = VLOG_DUMP_NOT_IMPL;
       break;
+    }
 
     /* ------------------------------------------------------------------ */
     default:

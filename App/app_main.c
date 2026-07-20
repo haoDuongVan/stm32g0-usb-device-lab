@@ -15,6 +15,7 @@
 #include "usb_hid_keyboard.h"
 #include "usb_cdc_log.h"
 #include "usb_vendor_cmd.h"
+#include "usb_vendor_bulk.h"
 
 #include "stm32g0xx_hal.h"
 
@@ -59,6 +60,7 @@ void HID_Keyboard_App(void)
 
   HidKeyboardConvert_Run();
   CdcLog_Run();
+  VendorDump_Run();
   VendorCmd_FlushPendingLog();
   VendorCmd_UpdateLed();
 }

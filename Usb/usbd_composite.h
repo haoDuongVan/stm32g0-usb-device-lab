@@ -6,13 +6,14 @@
  *
  * Custom USB class, replacing the CubeMX-generated usbd_hid.c entirely.
  * lab-09: HID Keyboard (Interface 0) + CDC ACM (Interfaces 1-2).
- * Vendor Bulk (Interface 3) is added in a later milestone.
+ * lab-12: Vendor Bulk (Interface 3) added for the RAM dump stream.
  *
  * Endpoint map:
  *   EP1 IN  0x81  HID Keyboard Interrupt IN   8 bytes  10 ms
  *   EP2 IN  0x82  CDC Notification  IN        8 bytes  16 ms
  *   EP3 OUT 0x03  CDC Data OUT               64 bytes
  *   EP3 IN  0x83  CDC Data IN                64 bytes
+ *   EP4 IN  0x84  Vendor Data Bulk IN        64 bytes
  */
 
 #ifndef INC_USBD_COMPOSITE_H_
@@ -37,6 +38,10 @@
 #define COMP_CDC_DATA_OUT_EP_ADDR   0x03U
 #define COMP_CDC_DATA_IN_EP_ADDR    0x83U
 #define COMP_CDC_DATA_EP_SIZE       0x40U   /* 64 bytes */
+
+/* Vendor sub-class (RAM dump bulk stream) */
+#define COMP_VENDOR_DATA_IN_EP_ADDR 0x84U
+#define COMP_VENDOR_DATA_EP_SIZE    0x40U   /* 64 bytes */
 
 /* CDC ACM class requests */
 #define CDC_SEND_ENCAPSULATED_COMMAND 0x00U
@@ -70,13 +75,16 @@ typedef struct
   volatile bool hidTxBusy;
 
   USBD_CDC_LineCodingTypeDef lineCoding;
-  uint8_t                    controlLineState;   /* DTR/RTS bits */
+  uint8_t                    controlLineState;  /* DTR/RTS bits */
   bool                       cdcHostConnected;   /* true after SET_CONTROL_LINE_STATE */
 
   volatile bool cdcTxBusy;
   uint8_t       cdcTxBuf[COMP_CDC_DATA_EP_SIZE];
   uint16_t      cdcTxLen;
   uint8_t       cdcRxBuf[COMP_CDC_DATA_EP_SIZE];
+
+  volatile bool vendorTxBusy;
+  uint8_t       vendorTxBuf[COMP_VENDOR_DATA_EP_SIZE];
 } USBD_Composite_HandleTypeDef;
 
 /* Exported variables --------------------------------------------------------*/
@@ -102,5 +110,14 @@ bool USBD_COMPOSITE_CDC_IsHostConnected(USBD_HandleTypeDef *pdev);
 
 /* Return true when the CDC IN endpoint is free */
 bool USBD_COMPOSITE_CDC_IsTxIdle(USBD_HandleTypeDef *pdev);
+
+/*
+ * Transmit one chunk of vendor bulk data (up to COMP_VENDOR_DATA_EP_SIZE bytes).
+ * Returns USBD_OK if accepted, USBD_BUSY if a previous TX is pending.
+ */
+uint8_t USBD_COMPOSITE_VENDOR_Transmit(USBD_HandleTypeDef *pdev, const uint8_t *buf, uint16_t len);
+
+/* Return true when the vendor bulk IN endpoint is free */
+bool USBD_COMPOSITE_VENDOR_IsTxIdle(USBD_HandleTypeDef *pdev);
 
 #endif /* INC_USBD_COMPOSITE_H_ */
