@@ -1,0 +1,34 @@
+[CDC] connected on COM7 @ 115200
+[CDC] log channel connected
+[VREQ] GET_FIRMWARE_INFO SUCCESS
+[HID] keyLoc=0 event=0 usage=0x1E
+[HID] keyLoc=0 event=0 usage=0x1E
+[HID] keyLoc=0 event=0 usage=0x1E
+[HID] keyLoc=1 event=0 usage=0x1F
+[HID] keyLoc=1 event=0 usage=0x1F
+[HID] keyLoc=1 event=0 usage=0x1F
+[HID] keyLoc=2 event=0 usage=0x20
+[HID] keyLoc=2 event=0 usage=0x20
+[HID] keyLoc=2 event=0 usage=0x20
+[VREQ] SET_REPEAT_ENABLE value=0 SUCCESS
+[HID] keyLoc=0 event=0 usage=0x1E
+[HID] keyLoc=1 event=0 usage=0x1F
+[HID] keyLoc=2 event=0 usage=0x20
+[VREQ] SET_REPEAT_ENABLE value=1 SUCCESS
+[HID] keyLoc=0 event=0 usage=0x1E
+[HID] keyLoc=0 event=2 usage=0x1E
+[HID] keyLoc=0 event=2 usage=0x1E
+[HID] keyLoc=1 event=0 usage=0x1F
+[HID] keyLoc=1 event=2 usage=0x1F
+[HID] keyLoc=1 event=2 usage=0x1F
+[HID] keyLoc=2 event=0 usage=0x20
+[HID] keyLoc=2 event=2 usage=0x20
+[HID] keyLoc=2 event=2 usage=0x20
+[VREQ] SET_LED_MODE mode=1 SUCCESS
+[VREQ] SET_LED_MODE mode=2 SUCCESS
+[VREQ] SET_LED_MODE mode=3 SUCCESS
+[VREQ] SET_LED_MODE mode=0 SUCCESS
+[BULK] RAM dump started len=147456
+[VREQ] START_RAM_DUMP accepted len=147456 SUCCESS
+[BULK] RAM dump complete len=147456
+
