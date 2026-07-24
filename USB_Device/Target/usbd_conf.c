@@ -26,7 +26,7 @@
 #include "usbd_composite.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "usb_lifecycle.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -264,7 +264,10 @@ void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
   }
   /* USER CODE END 2 */
   /* USER CODE BEGIN HAL_PCD_SuspendCallback_PostTreatment */
-
+  /* 
+   * Hand-patched for lab-14: count the suspend for CDC log diagnostics. 
+   */
+  UsbLifecycle_OnSuspend((USBD_HandleTypeDef*)hpcd->pData);
   /* USER CODE END HAL_PCD_SuspendCallback_PostTreatment */
 }
 
@@ -296,7 +299,12 @@ void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 
   USBD_LL_Resume((USBD_HandleTypeDef*)hpcd->pData);
   /* USER CODE BEGIN HAL_PCD_ResumeCallback_PostTreatment */
-
+  /*
+   * Hand-patched for lab-14: clear TxBusy flags and abort any in-flight
+   * vendor dump left over from before the suspend - see
+   * UsbLifecycle_OnResume in usb_lifecycle.c for the full rationale.
+   */
+  UsbLifecycle_OnResume((USBD_HandleTypeDef*)hpcd->pData);
   /* USER CODE END HAL_PCD_ResumeCallback_PostTreatment */
 }
 

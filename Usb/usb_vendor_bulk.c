@@ -5,10 +5,11 @@
  *      Author: haodu
  *
  * RAM dump state machine. VendorDump_Start arms a dump (called by the EP0
- * VENDOR_REQ_START_RAM_DUMP handler, once that milestone is redone).
+ * VENDOR_REQ_START_RAM_DUMP handler in usb_vendor_cmd.c).
  * VendorDump_Run kicks the first chunk from the main loop once armed;
  * VendorDump_OnTxCplt (called from Composite_DataIn) queues every
- * subsequent chunk as each transfer completes.
+ * subsequent chunk as each transfer completes. VendorDump_Abort is called
+ * on USB reset (Composite_Init) and resume (USBD_COMPOSITE_OnResume).
  */
 
 /* Includes ------------------------------------------------------------------*/
@@ -78,6 +79,29 @@ bool VendorDump_Start(uint32_t *acceptedLength)
   *acceptedLength = RAM_DUMP_MAX_SIZE;
 
   return true;
+}
+
+/*
+ * Clear the dump state machine unconditionally. Called on USB reset
+ * (Composite_Init) and resume (USBD_COMPOSITE_OnResume) so a dump left
+ * mid-flight across a bus reset or suspend cannot wedge sDumpActive in a
+ * state no new START_RAM_DUMP request can ever clear. Safe to call whether
+ * or not a dump is active. ISR-safe - only touches plain state, no
+ * CdcLog_Printf.
+ * Returns true if a dump was actually active (a real abort happened),
+ * false if this call was a no-op - lets the caller log which case it was.
+ */
+bool VendorDump_Abort(void)
+{
+  bool wasActive = sDumpActive;
+
+  sDumpActive = false;
+  sDumpAddr   = 0U;
+  sDumpTotal  = 0U;
+  sDumpOffset = 0U;
+  sDumpDone   = false;
+
+  return wasActive;
 }
 
 /* Called from Composite_DataIn (ISR) when EP4 IN transfer completes */

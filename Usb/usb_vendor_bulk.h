@@ -9,7 +9,9 @@
  * 0x20000000, 144 KB) in 64-byte chunks.
  *
  * VendorDump_Start is armed by the EP0 VENDOR_REQ_START_RAM_DUMP handler
- * in usb_vendor_cmd.c.
+ * in usb_vendor_cmd.c. VendorDump_Abort is called on USB reset/resume
+ * (Composite_Init, USBD_COMPOSITE_OnResume) so a dump left in flight across
+ * a bus reset or suspend cannot wedge the state machine.
  */
 
 #ifndef INC_USB_VENDOR_BULK_H_
@@ -22,6 +24,7 @@
 /* Function prototypes -------------------------------------------------------*/
 
 bool  VendorDump_Start(uint32_t *acceptedLength);
+bool  VendorDump_Abort(void);
 void  VendorDump_OnTxCplt(USBD_HandleTypeDef *pdev);
 void  VendorDump_Run(void);
 

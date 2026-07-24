@@ -138,6 +138,14 @@ an end marker. If `START_RAM_DUMP` is requested while a dump is already in
 progress, the firmware rejects it (`status=ERROR, acceptedLength=0`)
 without preempting or queuing the in-flight dump.
 
+**A USB bus reset or suspend/resume always aborts an in-flight dump.**
+The firmware does not attempt to resume a bulk transfer left mid-flight
+across either event - the host must reissue `START_RAM_DUMP` and read the
+full `acceptedLength` bytes again from the start. Host tooling should treat
+a bulk read that stalls or errors mid-transfer as a sign the connection was
+interrupted, and retry the whole dump rather than trying to resume a
+partial read.
+
 ## Change log
 
 - Vendor bulk endpoint and EP0 `START_RAM_DUMP` handler implemented

@@ -16,6 +16,7 @@
 #include "usb_cdc_log.h"
 #include "usb_vendor_cmd.h"
 #include "usb_vendor_bulk.h"
+#include "usb_lifecycle.h"
 
 #include "stm32g0xx_hal.h"
 
@@ -63,4 +64,5 @@ void HID_Keyboard_App(void)
   VendorDump_Run();
   VendorCmd_FlushPendingLog();
   VendorCmd_UpdateLed();
+  UsbLifecycle_FlushPendingLog();
 }

@@ -9,7 +9,7 @@
  * lab-12: Vendor Bulk (Interface 3) added for the RAM dump stream.
  *
  * Endpoint map:
- *   EP1 IN  0x81  HID Keyboard Interrupt IN   8 bytes  10 ms
+ *   EP1 IN  0x81  HID Keyboard Interrupt IN  8 bytes  10 ms
  *   EP2 IN  0x82  CDC Notification  IN        8 bytes  16 ms
  *   EP3 OUT 0x03  CDC Data OUT               64 bytes
  *   EP3 IN  0x83  CDC Data IN                64 bytes
@@ -21,6 +21,7 @@
 #include "usbd_ctlreq.h"
 #include "usb_vendor_bulk.h"
 #include "usb_vendor_cmd.h"
+#include "usb_lifecycle.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -306,6 +307,14 @@ static uint8_t Composite_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   hcomp->hidTxBusy        = false;
   hcomp->cdcTxBusy        = false;
   hcomp->cdcHostConnected = false;
+  hcomp->vendorTxBusy     = false;
+
+  /*
+   * Composite_Init runs on every fresh SetConfiguration, including the one
+   * that follows a USB reset - UsbLifecycle_OnReset aborts any dump left
+   * mid-flight across that reset (see usb_lifecycle.c).
+   */
+  UsbLifecycle_OnReset();
 
   /* Open HID IN endpoint */
   (void)USBD_LL_OpenEP(pdev, COMP_HID_EPIN_ADDR, USBD_EP_TYPE_INTR, COMP_HID_EPIN_SIZE);
