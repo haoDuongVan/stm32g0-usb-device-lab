@@ -14,7 +14,7 @@ Each milestone (per the tag/name in `DEVLOG.md`) has its own subfolder containin
 - **Device Manager** — supporting evidence only, never primary, since it can't distinguish between similar devices. Only use alongside USBView opened at the same time.
 
 ## One "hero" screenshot per milestone
-Don't capture ten screenshots per step. Example: `lab-08` -> Wireshark HID report; `lab-09` -> USBView composite descriptor; `lab-10` -> Tera Term CDC log; `lab-12` -> vendor_test RAM dump; `lab-14` -> Tera Term lifecycle log.
+Don't capture ten screenshots per step. Example: `lab-08` -> Wireshark HID report; `lab-09` -> USBView composite descriptor; `lab-10` -> Tera Term CDC log; `lab-12` -> vendor_test RAM dump; `lab-15` -> Tera Term lifecycle log.
 
 ## Tags
 Every milestone has a git tag (see the table in `DEVLOG.md` section 1) — use `git checkout <tag>` to rebuild/re-capture evidence for any milestone.
